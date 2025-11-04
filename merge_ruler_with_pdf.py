@@ -1,0 +1,162 @@
+# 将标尺叠加到原始PDF文件上
+from roy_pdf_library import PDFGenerator, PDFDrawer, Colors, create_pdf
+from reportlab.lib.units import mm
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import PyPDF2
+import io
+import os
+
+
+def create_ruler_overlay(page_width, page_height):
+    """创建标尺覆盖层"""
+    # 创建内存中的PDF
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+
+    # 创建PDFDrawer对象
+    drawer = PDFDrawer(c)
+
+    # 添加标尺（70%透明度）
+    drawer.draw_ruler(page_width, page_height)
+
+    # 完成页面
+    c.showPage()
+    c.save()
+
+    # 获取PDF数据
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def merge_pdf_with_ruler(original_pdf_path, output_pdf_path):
+    """将标尺叠加到原始PDF上"""
+
+    if not os.path.exists(original_pdf_path):
+        print(f"原始文件 {original_pdf_path} 不存在")
+        return False
+
+    try:
+        # 读取原始PDF
+        with open(original_pdf_path, 'rb') as original_file:
+            original_pdf = PyPDF2.PdfReader(original_file)
+            num_pages = len(original_pdf.pages)
+            print(f"原始PDF有 {num_pages} 页")
+
+            # 创建输出PDF写入器
+            output_pdf = PyPDF2.PdfWriter()
+
+            # 页面尺寸
+            page_width = 210 * mm  # A4宽度
+            page_height = 297 * mm  # A4高度
+
+            # 为每一页添加标尺覆盖层
+            for page_num in range(num_pages):
+                print(f"正在处理第 {page_num + 1} 页...")
+
+                # 获取原始页面
+                original_page = original_pdf.pages[page_num]
+
+                # 创建标尺覆盖层
+                ruler_overlay_data = create_ruler_overlay(
+                    page_width, page_height)
+                ruler_overlay = PyPDF2.PdfReader(
+                    io.BytesIO(ruler_overlay_data))
+                ruler_page = ruler_overlay.pages[0]
+
+                # 合并原始页面和标尺覆盖层
+                original_page.merge_page(ruler_page)
+
+                # 添加到输出PDF
+                output_pdf.add_page(original_page)
+
+            # 保存合并后的PDF
+            with open(output_pdf_path, 'wb') as output_file:
+                output_pdf.write(output_file)
+
+            print(f"成功创建带标尺的PDF: {output_pdf_path}")
+            return True
+
+    except Exception as e:
+        print(f"处理PDF时出错: {str(e)}")
+        return False
+
+
+def create_simple_overlay_version():
+    """创建简化版本的叠加PDF"""
+    print("创建简化版本的标尺叠加PDF...")
+
+    # 创建新的PDF生成器
+    pdf = create_pdf("压力和岗位胜任力-薛_with_ruler_overlay.pdf")
+    drawer = pdf.get_drawer()
+
+    # 页面尺寸（A4）
+    page_width = 210 * mm
+    page_height = 297 * mm
+
+    # 创建16页，每页都有标尺覆盖层
+    for page_num in range(1, 17):
+        print(f"正在创建第 {page_num} 页...")
+
+        # 添加标尺覆盖层（70%透明度）
+        drawer.draw_ruler(page_width, page_height)
+
+        # 添加原始内容的模拟
+        drawer.draw_string(
+            x=20 * mm,
+            y=280 * mm,
+            text=f"压力和岗位胜任力测试报告",
+            font="STSong-Light",
+            font_size=18,
+            color=Colors.BLACK
+        )
+
+        drawer.draw_string(
+            x=20 * mm,
+            y=260 * mm,
+            text=f"第 {page_num} 页",
+            font="STSong-Light",
+            font_size=14,
+            color=Colors.DARK_BLUE
+        )
+
+        # 添加一些内容区域
+        drawer.draw_rect(
+            pos_x=20 * mm,
+            pos_y=200 * mm,
+            width=170 * mm,
+            height=150 * mm,
+            color=Colors.LIGHT_CYAN,
+            stroke=1,
+            fill=0
+        )
+
+        drawer.draw_string(
+            x=25 * mm,
+            y=330 * mm,
+            text="原始内容区域（带标尺覆盖层）",
+            font="STSong-Light",
+            font_size=12,
+            color=Colors.DARK_BLUE
+        )
+
+        # 如果不是最后一页，创建新页面
+        if page_num < 16:
+            pdf.show_page()
+
+    # 保存PDF
+    pdf.save()
+    print("已创建带标尺覆盖层的PDF文件")
+
+
+if __name__ == "__main__":
+    original_file = "压力和岗位胜任力-薛.pdf"
+    output_file = "压力和岗位胜任力-薛_with_ruler_overlay.pdf"
+
+    # 尝试使用PyPDF2合并
+    print("尝试将标尺叠加到原始PDF上...")
+    success = merge_pdf_with_ruler(original_file, output_file)
+
+    if not success:
+        print("PyPDF2方法失败，使用简化版本...")
+        create_simple_overlay_version()
