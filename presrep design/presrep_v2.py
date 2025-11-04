@@ -1,5 +1,24 @@
 # Import system modules
+import sys
+import os
+
+# Change to the script's directory to ensure relative paths work
+# This makes sure image files can be found regardless of where the script is run from
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
+# Add parent directory to path to import roy_pdf_library
+# This must happen BEFORE importing roy_pdf_library
+# sys.path.insert() tells Python where to look for modules
+# os.path.join() creates the path to the parent directory (..)
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
+
+# Import roy's custom PDF library
+# This import comes AFTER the path setup above
 from roy_pdf_library import PDFGenerator, PDFDrawer, Colors, create_pdf
+
+# Import reportlab modules
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.platypus import Paragraph
@@ -9,20 +28,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.lib.units import mm
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.pdfgen import canvas
-import sys
-import os
-
-# Add parent directory to path to import roy_pdf_library
-# This must happen BEFORE importing roy_pdf_library
-# sys.path.insert() tells Python where to look for modules
-# os.path.join() creates the path to the parent directory (..)
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
-
-# Import reportlab modules
-
-# Import roy's custom PDF library
-# This import comes AFTER the path setup above
 
 # Create PDF with A4 page size
 # A4 = standard paper size (210mm x 297mm)
@@ -39,36 +44,108 @@ page_height = 297 * mm  # A4 height = 297 millimeters
 
 # Define Chinese title font object
 # This creates reusable font settings for Chinese titles
-# fontsize=30 makes the font 30 points large
+# fontsize=27 makes the font 27 points large (reduced by 3 pts)
 # STSong-Light is the Chinese font (no bold variant available)
 # color=Colors.BLACK makes the text black
 chinese_title_font = {
     'font': 'STSong-Light',
-    'font_size': 30,
+    'font_size': 27,
     'color': Colors.BLACK
 }
 
 # Define English title font object
 # This creates reusable font settings for English titles
-# fontsize=25 makes the font 25 points large
-# Helvetica is a standard English font
-# color=Colors.DARK_BLUE makes the text blue
+# fontsize=20, Helvetica font, Blue color
 english_title_font = {
     'font': 'Helvetica',
-    'font_size': 25,
-    'color': Colors.DARK_BLUE
+    'font_size': 20,
+    'color': [0, 0, 1]  # Blue color in RGB
 }
 
-# Define text_font object for bottom text on pages
-# This font is used for the organization and location text
-# fontsize=17 (reduced from 20 by 3 points)
-# STSong-Light for Chinese characters
-# Black color
+# Define Chinese subtitle font object
+# Grey color, font size 15, STSong-Light
+chinese_subtitle_font = {
+    'font': 'STSong-Light',
+    'font_size': 15,
+    'color': [0.5, 0.5, 0.5]  # Grey color
+}
+
+# Define English subtitle font object
+# Grey color, font size 15, Helvetica
+english_subtitle_font = {
+    'font': 'Helvetica',
+    'font_size': 15,
+    'color': [0.5, 0.5, 0.5]  # Grey color
+}
+
+# Define text_font object for paragraph text
+# Light grey color, font size 12, STSong-Light
 text_font = {
+    'font': 'STSong-Light',
+    'font_size': 12,
+    'color': [0.7, 0.7, 0.7]  # Light grey color
+}
+
+# Define page2_text_font object for page 2 bottom text
+# Black color, font size 17, STSong-Light
+page2_text_font = {
     'font': 'STSong-Light',
     'font_size': 17,
     'color': Colors.BLACK
 }
+
+# Define big_title_font object for page 1 title text
+# This font is used for the main title text on page 1
+# fontsize=30, STSong-Light for Chinese characters, Blue color
+big_title_font = {
+    'font': 'STSong-Light',
+    'font_size': 30,
+    'color': Colors.DARK_BLUE
+}
+
+# Define paragraph_title function to draw Chinese + separator + English subtitle
+def draw_paragraph_title(drawer, x, y, chinese_text, english_text):
+    """
+    Draw a paragraph title with Chinese text, vertical line separator, and English text
+    Parameters:
+        drawer: PDFDrawer object
+        x: x position for Chinese text start
+        y: y position for baseline
+        chinese_text: Chinese subtitle text
+        english_text: English subtitle text
+    """
+    # Draw Chinese subtitle
+    drawer.draw_string(
+        x=x,
+        y=y,
+        text=chinese_text,
+        font=chinese_subtitle_font['font'],
+        font_size=chinese_subtitle_font['font_size'],
+        color=chinese_subtitle_font['color']
+    )
+    
+    # Calculate position for vertical line (65 points after x)
+    line_x = x + 65
+    
+    # Draw vertical line separator
+    drawer.draw_line(
+        x1=line_x,
+        y1=y + 15,
+        x2=line_x,
+        y2=y,
+        width=1,
+        color=[0.5, 0.5, 0.5]  # Grey color
+    )
+    
+    # Draw English subtitle (10 points after line)
+    drawer.draw_string(
+        x=line_x + 10,
+        y=y,
+        text=english_text,
+        font=english_subtitle_font['font'],
+        font_size=english_subtitle_font['font_size'],
+        color=english_subtitle_font['color']
+    )
 
 # Initialize page number counter
 # This counter starts at 0 and increments for each page
@@ -90,15 +167,37 @@ for page_number in range(16):
     # This helps you see exact positions when placing content
     drawer.draw_ruler(page_width, page_height)
 
-    # Upload company.jpg at 430,720 on pages 1 and 2 only
-    # page_number == 0 means page 1, page_number == 1 means page 2
-    if page_number == 0 or page_number == 1:
-        # Same size as company.jpg on page 1 (120×40)
+    # Upload header image on pages 2-16 at y=800
+    # page_number >= 1 means page 2 and beyond
+    if page_number >= 1:
+        drawer.upload_image(
+            image="p3/header.png",
+            x=0,
+            y=800,
+            width=page_width,
+            height=40
+        )
+    
+    # Upload company logo on pages 3-16 at bottom right
+    # page_number >= 2 means page 3 and beyond
+    if page_number >= 2:
         drawer.upload_image(
             image="p1/company.jpg",
-            x=430,
-            y=720,
-            width=120,
+            x=490,
+            y=20,
+            width=50,
+            height=20
+        )
+
+    # Upload footer image only on page 2
+    # x=0, y=0 means bottom left corner
+    # width=page_width makes it span the full page width
+    if page_number == 1:
+        drawer.upload_image(
+            image="p2/footer.png",
+            x=0,
+            y=0,
+            width=page_width,
             height=40
         )
 
@@ -133,29 +232,51 @@ for page_number in range(16):
         )
 
         # Upload titlepage image on page 1
-        # x=150 means 150 points from the left edge
+        # x=35 (decreased by 75 from 110)
         # y=410 means 410 points from the bottom edge (middle-upper area)
-        # Width and height reduced by 30% (to 70% of original)
-        # Assuming original is approximately 300×200, 70% = 210×140
+        # width=530 (increased by 150 from 380), height=290 (700-410)
         drawer.upload_image(
             image="p1/titlepage.jpg",
-            x=150,
+            x=35,
             y=410,
-            width=210,
-            height=140
+            width=530,
+            height=290
         )
 
-        # Upload title image on page 1
-        # x=130 means 130 points from the left edge
-        # y=380 means 380 points from the bottom edge
-        # Width and height reduced by 30% (to 70% of original)
-        # Assuming original is approximately 350×50, 70% = 245×35
-        drawer.upload_image(
-            image="p1/title.png",
-            x=130,
-            y=380,
-            width=245,
-            height=35
+        # Draw centered text "员工抗压力" on page 1
+        # Get canvas object to calculate text width for centering
+        canvas_obj = pdf.get_canvas()
+        text_page1 = "员工抗压力"
+        # Calculate text width to center it using big_title_font parameters
+        text_width_page1 = canvas_obj.stringWidth(
+            text_page1, big_title_font['font'], big_title_font['font_size'])
+        # Calculate centered x position: (page_width - text_width) / 2
+        centered_x_page1 = (page_width - text_width_page1) / 2
+        # Draw the centered text using big_title_font parameters
+        drawer.draw_string(
+            x=centered_x_page1,
+            y=340,
+            text=text_page1,
+            font=big_title_font['font'],
+            font_size=big_title_font['font_size'],
+            color=big_title_font['color']
+        )
+
+        # Draw centered text "和岗位胜任力报告" on page 1
+        text_page1_line2 = "和岗位胜任力报告"
+        # Calculate text width to center it using big_title_font parameters
+        text_width_page1_line2 = canvas_obj.stringWidth(
+            text_page1_line2, big_title_font['font'], big_title_font['font_size'])
+        # Calculate centered x position
+        centered_x_page1_line2 = (page_width - text_width_page1_line2) / 2
+        # Draw the centered text using big_title_font parameters
+        drawer.draw_string(
+            x=centered_x_page1_line2,
+            y=295,
+            text=text_page1_line2,
+            font=big_title_font['font'],
+            font_size=big_title_font['font_size'],
+            color=big_title_font['color']
         )
 
     # ============================================================
@@ -164,17 +285,50 @@ for page_number in range(16):
     # Upload images only on page 2
     # page_number == 1 means this is the second page
     if page_number == 1:
-        # Upload page2titletext on page 2
-        # x=130 means 130 points from the left edge
-        # y=580 means 580 points from the bottom edge (moved from 670)
-        # width=330 sets the image width to 330 points
-        # height=120 sets the image height to 120 points
+        # Upload company logo on page 2
+        # Same width and height as page 1, same y position, x=430
         drawer.upload_image(
-            image="p2/p2titletext.png",
-            x=130,
+            image="p1/company.jpg",
+            x=430,
+            y=740,
+            width=120,
+            height=40
+        )
+        
+        # Draw centered text "员工抗压力" on page 2
+        # Get canvas object to calculate text width for centering
+        canvas_obj = pdf.get_canvas()
+        text_page2_line1 = "员工抗压力"
+        # Calculate text width to center it using big_title_font parameters
+        text_width_page2_line1 = canvas_obj.stringWidth(
+            text_page2_line1, big_title_font['font'], big_title_font['font_size'])
+        # Calculate centered x position
+        centered_x_page2_line1 = (page_width - text_width_page2_line1) / 2
+        # Draw the centered text using big_title_font parameters
+        drawer.draw_string(
+            x=centered_x_page2_line1,
+            y=625,
+            text=text_page2_line1,
+            font=big_title_font['font'],
+            font_size=big_title_font['font_size'],
+            color=big_title_font['color']
+        )
+
+        # Draw centered text "和岗位胜任力报告" on page 2
+        text_page2_line2 = "和岗位胜任力报告"
+        # Calculate text width to center it using big_title_font parameters
+        text_width_page2_line2 = canvas_obj.stringWidth(
+            text_page2_line2, big_title_font['font'], big_title_font['font_size'])
+        # Calculate centered x position
+        centered_x_page2_line2 = (page_width - text_width_page2_line2) / 2
+        # Draw the centered text using big_title_font parameters
+        drawer.draw_string(
+            x=centered_x_page2_line2,
             y=580,
-            width=330,
-            height=120
+            text=text_page2_line2,
+            font=big_title_font['font'],
+            font_size=big_title_font['font_size'],
+            color=big_title_font['color']
         )
 
         # Add centered text on page 2 (moved from page 1)
@@ -182,43 +336,150 @@ for page_number in range(16):
         canvas_obj = pdf.get_canvas()
 
         # Draw first centered text at y=120
-        # Using text_font object parameters
+        # Using page2_text_font object parameters
         # Text: "测评单位（测评师）：中科宜和（北京）"
         text1 = "测评单位（测评师）：中科宜和（北京）"
         # Calculate text width to center it
         # stringWidth() measures how wide the text will be
         text_width1 = canvas_obj.stringWidth(
-            text1, text_font['font'], text_font['font_size'])
+            text1, page2_text_font['font'], page2_text_font['font_size'])
         # Calculate centered x position: (page_width - text_width) / 2
         centered_x1 = (page_width - text_width1) / 2
-        # Draw the centered text using text_font parameters
+        # Draw the centered text using page2_text_font parameters
         drawer.draw_string(
             x=centered_x1,
             y=120,
             text=text1,
-            font=text_font['font'],
-            font_size=text_font['font_size'],
-            color=text_font['color']
+            font=page2_text_font['font'],
+            font_size=page2_text_font['font_size'],
+            color=page2_text_font['color']
         )
 
         # Draw second centered text at y=95
-        # Using text_font object parameters
+        # Using page2_text_font object parameters
         # Text: "测评地点：北京市 / 北京市 / 海淀区"
         text2 = "测评地点：北京市 / 北京市 / 海淀区"
         # Calculate text width to center it
         text_width2 = canvas_obj.stringWidth(
-            text2, text_font['font'], text_font['font_size'])
+            text2, page2_text_font['font'], page2_text_font['font_size'])
         # Calculate centered x position
         centered_x2 = (page_width - text_width2) / 2
-        # Draw the centered text using text_font parameters
+        # Draw the centered text using page2_text_font parameters
         drawer.draw_string(
             x=centered_x2,
             y=95,
             text=text2,
-            font=text_font['font'],
-            font_size=text_font['font_size'],
-            color=text_font['color']
+            font=page2_text_font['font'],
+            font_size=page2_text_font['font_size'],
+            color=page2_text_font['color']
         )
+
+    # ============================================================
+    # PAGE 3 - SPECIFIC CONTENT
+    # ============================================================
+    # Add title text on page 3 only
+    # page_number == 2 means this is page 3
+    if page_number == 2:
+        # Draw "心理韧性测评报告" at position (50, 740) using title font
+        drawer.draw_string(
+            x=50,
+            y=740,
+            text="心理韧性测评报告",
+            font=chinese_title_font['font'],
+            font_size=chinese_title_font['font_size'],
+            color=chinese_title_font['color']
+        )
+        
+        # Draw "GENERAL ABILITY REPORT" at position (50, 715) using English title font
+        drawer.draw_string(
+            x=50,
+            y=715,
+            text="GENERAL ABILITY REPORT",
+            font=english_title_font['font'],
+            font_size=english_title_font['font_size'],
+            color=english_title_font['color']
+        )
+        
+        # Use paragraph_title function to draw "心理韧性 | Psychological Resilience"
+        draw_paragraph_title(drawer, 50, 670, "心理韧性", "Psychological Resilience")
+        
+        # Draw justified paragraph at (50, 650) with wrap width 345, height 70
+        # Create paragraph style for justified text
+        paragraph_text = """心理韧性（Resilience）是指个体在面对压力、逆境、创伤或重大生活挑战时能够良好适应、快速恢复并从中成长的能力。它反映了一个人在情绪、认知和行为层面的抗压能力与自我调节能力。高心理韧性者通常更乐观、适应力强、能有效应对不确定性。"""
+        
+        # Register Chinese font for reportlab
+        pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+        
+        # Create custom paragraph style with justified alignment
+        paragraph_style = ParagraphStyle(
+            'CustomJustified',
+            fontName='STSong-Light',
+            fontSize=text_font['font_size'],
+            textColor=colors.Color(text_font['color'][0], text_font['color'][1], text_font['color'][2]),
+            alignment=TA_JUSTIFY,
+            leading=text_font['font_size'] * 1.2  # Line height
+        )
+        
+        # Create paragraph object
+        para = Paragraph(paragraph_text, paragraph_style)
+        
+        # Get canvas object for drawing
+        canvas_obj = pdf.get_canvas()
+        
+        # Wrap and draw the paragraph
+        para.wrapOn(canvas_obj, 345, 70)
+        para.drawOn(canvas_obj, 50, 650 - 70)  # Subtract height for top-to-bottom positioning
+        
+        # Add dottedline image at (50, 565)
+        drawer.upload_image(
+            image="p3/dottedline.png",
+            x=50,
+            y=565,
+            width=495,
+            height=2
+        )
+        
+        # Add paragraph title "测评结果详情 | Results Details" at (50, 525)
+        draw_paragraph_title(drawer, 50, 525, "测评结果详情", "Results Details")
+        
+        # Add graph image at (80, 390)
+        drawer.upload_image(
+            image="p3/graph.png",
+            x=80,
+            y=390,
+            width=435,
+            height=110
+        )
+        
+        # Add dottedline image at (50, 300)
+        drawer.upload_image(
+            image="p3/dottedline.png",
+            x=50,
+            y=300,
+            width=495,
+            height=2
+        )
+        
+        # Add paragraph title "心理韧性等级说明 | Applications" at (50, 260)
+        draw_paragraph_title(drawer, 50, 260, "心理韧性等级说明", "Applications")
+        
+        # Add bottom paragraph at (50, 90) with width 495, height 150
+        bottom_paragraph_text = """心理韧性（Resilience）是指个体在面对压力、逆境、创伤或重大生活挑战时能够良好适应、快速恢复并从中成长的能力。它反映了一个人在情绪、认知和行为层面的抗压能力与自我调节能力。高心理韧性者通常更乐观、适应力强、能有效应对不确定性。心理韧性不仅是一种心理状态，更是一种可以通过训练和实践不断增强的能力。"""
+        
+        # Create paragraph style for bottom paragraph
+        bottom_paragraph_style = ParagraphStyle(
+            'BottomParagraph',
+            fontName='STSong-Light',
+            fontSize=text_font['font_size'],
+            textColor=colors.Color(text_font['color'][0], text_font['color'][1], text_font['color'][2]),
+            alignment=TA_JUSTIFY,
+            leading=text_font['font_size'] * 1.2
+        )
+        
+        # Create and draw bottom paragraph
+        bottom_para = Paragraph(bottom_paragraph_text, bottom_paragraph_style)
+        bottom_para.wrapOn(canvas_obj, 495, 150)
+        bottom_para.drawOn(canvas_obj, 50, 90)
 
     # ============================================================
     # PAGE 3+ - CONTENT PAGES
