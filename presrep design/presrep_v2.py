@@ -63,19 +63,19 @@ english_title_font = {
 }
 
 # Define Chinese subtitle font object
-# Grey color, font size 15, STSong-Light
+# Black color, font size 15, STSong-Light
 chinese_subtitle_font = {
     'font': 'STSong-Light',
     'font_size': 15,
-    'color': [0.5, 0.5, 0.5]  # Grey color
+    'color': Colors.BLACK  # Black color
 }
 
 # Define English subtitle font object
-# Grey color, font size 15, Helvetica
+# Black color, font size 15, Helvetica
 english_subtitle_font = {
     'font': 'Helvetica',
     'font_size': 15,
-    'color': [0.5, 0.5, 0.5]  # Grey color
+    'color': Colors.BLACK  # Black color
 }
 
 # Define text_font object for paragraph text
@@ -104,11 +104,13 @@ big_title_font = {
 }
 
 # Define paragraph_title function to draw Chinese + separator + English subtitle
-def draw_paragraph_title(drawer, x, y, chinese_text, english_text):
+def draw_paragraph_title(drawer, canvas_obj, x, y, chinese_text, english_text):
     """
     Draw a paragraph title with Chinese text, vertical line separator, and English text
+    Dynamically calculates spacing based on Chinese text width
     Parameters:
         drawer: PDFDrawer object
+        canvas_obj: Canvas object for calculating text width
         x: x position for Chinese text start
         y: y position for baseline
         chinese_text: Chinese subtitle text
@@ -124,8 +126,15 @@ def draw_paragraph_title(drawer, x, y, chinese_text, english_text):
         color=chinese_subtitle_font['color']
     )
     
-    # Calculate position for vertical line (65 points after x)
-    line_x = x + 65
+    # Calculate Chinese text width
+    chinese_width = canvas_obj.stringWidth(
+        chinese_text,
+        chinese_subtitle_font['font'],
+        chinese_subtitle_font['font_size']
+    )
+    
+    # Calculate position for vertical line (chinese_width + 20 points)
+    line_x = x + chinese_width + 20
     
     # Draw vertical line separator
     drawer.draw_line(
@@ -134,12 +143,12 @@ def draw_paragraph_title(drawer, x, y, chinese_text, english_text):
         x2=line_x,
         y2=y,
         width=1,
-        color=[0.5, 0.5, 0.5]  # Grey color
+        color=Colors.BLACK  # Black color to match subtitles
     )
     
-    # Draw English subtitle (10 points after line)
+    # Draw English subtitle (20 points after line)
     drawer.draw_string(
-        x=line_x + 10,
+        x=line_x + 20,
         y=y,
         text=english_text,
         font=english_subtitle_font['font'],
@@ -147,10 +156,84 @@ def draw_paragraph_title(drawer, x, y, chinese_text, english_text):
         color=english_subtitle_font['color']
     )
 
+# Define function to draw Chinese title
+def draw_chinese_title(drawer, x, y, text, font_size=None):
+    """
+    Draw Chinese title text
+    Parameters:
+        drawer: PDFDrawer object
+        x: x position
+        y: y position
+        text: Chinese title text
+        font_size: Optional font size (defaults to chinese_title_font size)
+    """
+    size = font_size if font_size is not None else chinese_title_font['font_size']
+    drawer.draw_string(
+        x=x,
+        y=y,
+        text=text,
+        font=chinese_title_font['font'],
+        font_size=size,
+        color=chinese_title_font['color']
+    )
+
+# Define function to draw English title
+def draw_english_title(drawer, x, y, text, font_size=None, font=None):
+    """
+    Draw English title text
+    Parameters:
+        drawer: PDFDrawer object
+        x: x position
+        y: y position
+        text: English title text
+        font_size: Optional font size (defaults to english_title_font size)
+        font: Optional font (defaults to english_title_font font)
+    """
+    size = font_size if font_size is not None else english_title_font['font_size']
+    font_name = font if font is not None else english_title_font['font']
+    drawer.draw_string(
+        x=x,
+        y=y,
+        text=text,
+        font=font_name,
+        font_size=size,
+        color=english_title_font['color']
+    )
+
+# Define function to draw justified paragraph
+def draw_paragraph(canvas_obj, x, y, width, height, text):
+    """
+    Draw justified paragraph with specified dimensions
+    Parameters:
+        canvas_obj: Canvas object for drawing
+        x: x position
+        y: y position (top of paragraph)
+        width: paragraph width
+        height: paragraph height
+        text: paragraph text
+    """
+    # Register Chinese font for reportlab
+    pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+    
+    # Create paragraph style
+    para_style = ParagraphStyle(
+        'JustifiedParagraph',
+        fontName='STSong-Light',
+        fontSize=text_font['font_size'],
+        textColor=colors.Color(text_font['color'][0], text_font['color'][1], text_font['color'][2]),
+        alignment=TA_JUSTIFY,
+        leading=text_font['font_size'] * 1.2
+    )
+    
+    # Create and draw paragraph
+    para = Paragraph(text, para_style)
+    para.wrapOn(canvas_obj, width, height)
+    para.drawOn(canvas_obj, x, y - height)  # Subtract height for top-to-bottom positioning
+
 # Initialize page number counter
-# This counter starts at 0 and increments for each page
+# This counter starts at 1 so page 3 displays "1"
 # Used for page numbering on pages 3+
-page_counter = 0
+page_counter = 1
 
 # Create 16 pages with ruler overlay
 # range(16) means: repeat 16 times, from 0 to 15
@@ -400,8 +483,11 @@ for page_number in range(16):
             color=english_title_font['color']
         )
         
+        # Get canvas object for drawing and calculating widths
+        canvas_obj = pdf.get_canvas()
+        
         # Use paragraph_title function to draw "心理韧性 | Psychological Resilience"
-        draw_paragraph_title(drawer, 50, 670, "心理韧性", "Psychological Resilience")
+        draw_paragraph_title(drawer, canvas_obj, 50, 670, "心理韧性", "Psychological Resilience")
         
         # Draw justified paragraph at (50, 650) with wrap width 345, height 70
         # Create paragraph style for justified text
@@ -423,12 +509,18 @@ for page_number in range(16):
         # Create paragraph object
         para = Paragraph(paragraph_text, paragraph_style)
         
-        # Get canvas object for drawing
-        canvas_obj = pdf.get_canvas()
-        
         # Wrap and draw the paragraph
         para.wrapOn(canvas_obj, 345, 70)
         para.drawOn(canvas_obj, 50, 650 - 70)  # Subtract height for top-to-bottom positioning
+        
+        # Add explainparagraph image at (430, 630) with width 130, height 80
+        drawer.upload_image(
+            image="p3/explainparagraph.png",
+            x=430,
+            y=630,
+            width=130,
+            height=80
+        )
         
         # Add dottedline image at (50, 565)
         drawer.upload_image(
@@ -440,15 +532,15 @@ for page_number in range(16):
         )
         
         # Add paragraph title "测评结果详情 | Results Details" at (50, 525)
-        draw_paragraph_title(drawer, 50, 525, "测评结果详情", "Results Details")
+        draw_paragraph_title(drawer, canvas_obj, 50, 525, "测评结果详情", "Results Details")
         
-        # Add graph image at (80, 390)
+        # Add graph image at (80, 390) - height decreased by 100 pts
         drawer.upload_image(
             image="p3/graph.png",
             x=80,
             y=390,
             width=435,
-            height=110
+            height=10
         )
         
         # Add dottedline image at (50, 300)
@@ -461,25 +553,140 @@ for page_number in range(16):
         )
         
         # Add paragraph title "心理韧性等级说明 | Applications" at (50, 260)
-        draw_paragraph_title(drawer, 50, 260, "心理韧性等级说明", "Applications")
+        draw_paragraph_title(drawer, canvas_obj, 50, 260, "心理韧性等级说明", "Applications")
         
-        # Add bottom paragraph at (50, 90) with width 495, height 150
-        bottom_paragraph_text = """心理韧性（Resilience）是指个体在面对压力、逆境、创伤或重大生活挑战时能够良好适应、快速恢复并从中成长的能力。它反映了一个人在情绪、认知和行为层面的抗压能力与自我调节能力。高心理韧性者通常更乐观、适应力强、能有效应对不确定性。心理韧性不仅是一种心理状态，更是一种可以通过训练和实践不断增强的能力。"""
+        # Add bottomparagraph image at (50, 90) with width 495, height 150
+        drawer.upload_image(
+            image="p3/bottomparagraph.png",
+            x=50,
+            y=90,
+            width=495,
+            height=150
+        )
+
+    # ============================================================
+    # PAGE 4 - SPECIFIC CONTENT
+    # ============================================================
+    # Add content only on page 4
+    # page_number == 3 means this is page 4
+    if page_number == 3:
+        # Calculate paragraph width: page_width - (2 x 50)
+        paragraph_width = page_width - 100
         
-        # Create paragraph style for bottom paragraph
-        bottom_paragraph_style = ParagraphStyle(
-            'BottomParagraph',
-            fontName='STSong-Light',
-            fontSize=text_font['font_size'],
-            textColor=colors.Color(text_font['color'][0], text_font['color'][1], text_font['color'][2]),
-            alignment=TA_JUSTIFY,
-            leading=text_font['font_size'] * 1.2
+        # Upload paragraph1 image at (50, 480) with calculated width, height 320
+        drawer.upload_image(
+            image="p4/paragraph1.png",
+            x=50,
+            y=480,
+            width=paragraph_width,
+            height=320
         )
         
-        # Create and draw bottom paragraph
-        bottom_para = Paragraph(bottom_paragraph_text, bottom_paragraph_style)
-        bottom_para.wrapOn(canvas_obj, 495, 150)
-        bottom_para.drawOn(canvas_obj, 50, 90)
+        # Upload paragraph2 image at (50, 50) with same width and height as paragraph1
+        drawer.upload_image(
+            image="p4/paragraph2.png",
+            x=50,
+            y=50,
+            width=paragraph_width,
+            height=320
+        )
+
+    # ============================================================
+    # PAGE 5 - SPECIFIC CONTENT
+    # ============================================================
+    # Add content only on page 5
+    # page_number == 4 means this is page 5
+    if page_number == 4:
+        # Upload paragraph1 image at (100, 430) with width 510, height 330 (760-430)
+        drawer.upload_image(
+            image="p5/paragraph1.png",
+            x=100,
+            y=430,
+            width=510,
+            height=330
+        )
+        
+        # Upload paragraph2 image at (100, 60) with width 500, height 330 (380-50)
+        drawer.upload_image(
+            image="p5/paragraph2.png",
+            x=100,
+            y=60,
+            width=500,
+            height=330
+        )
+
+    # ============================================================
+    # PAGE 6 - SPECIFIC CONTENT
+    # ============================================================
+    # Add content only on page 6
+    # page_number == 5 means this is page 6
+    if page_number == 5:
+        # Calculate paragraph width: page_width - 100
+        paragraph_width = page_width - 100
+        
+        # Upload paragraph1 image at (50, 240) with calculated width, height 500 (760-260)
+        drawer.upload_image(
+            image="p6/paragraph1.png",
+            x=50,
+            y=240,
+            width=paragraph_width,
+            height=500
+        )
+
+    # ============================================================
+    # PAGE 7 - SPECIFIC CONTENT
+    # ============================================================
+    # Add content only on page 7
+    # page_number == 6 means this is page 7
+    if page_number == 6:
+        # Get canvas object for drawing
+        canvas_obj = pdf.get_canvas()
+        
+        # Draw Chinese title "人格特质测试报告" at same location as previous Chinese titles
+        draw_chinese_title(drawer, 50, 740, "人格特质测试报告")
+        
+        # Draw English title "Basic Psychological Traits" at same location as previous English titles
+        draw_english_title(drawer, 50, 715, "Basic Psychological Traits")
+        
+        # Draw Chinese subtitle at y=685 with font size reduced by 5 pts (27-5=22)
+        draw_chinese_title(drawer, 50, 685, "大五人格量表（ CBF-P1-15）", font_size=22)
+        
+        # Draw English subtitle at y=680 with Helvetica font
+        draw_english_title(drawer, 50, 680, "Chinese Big Personality Inventory-15", font_size=22, font="Helvetica")
+        
+        # Draw paragraph at (50, 630) with width 345, height 70
+        paragraph_text = """大五人格 (The Big Five Personality Traits) 是描述人类性格最广泛接受的模型之一，包含五个核心维度：神经质、外倾性、开放性、宜人性和尽责性。了解自己的人格特质有助于更好地认识自我，提升人际关系，优化发展路径。"""
+        draw_paragraph(canvas_obj, 50, 630, 345, 70, paragraph_text)
+        
+        # Upload explainparagraph/points image at (410, 630) with same dimensions as page 3
+        drawer.upload_image(
+            image="p7/points.png",
+            x=410,
+            y=630,
+            width=130,
+            height=80
+        )
+        
+        # Add dottedline image at (50, 565)
+        drawer.upload_image(
+            image="p3/dottedline.png",
+            x=50,
+            y=565,
+            width=495,
+            height=2
+        )
+        
+        # Call subtitle function at (50, 550)
+        draw_paragraph_title(drawer, canvas_obj, 50, 550, "我的人格特质类型", "My Big Personality")
+        
+        # Upload paragraph2 image at (50, 60) with height 160, width = page_width - 300
+        drawer.upload_image(
+            image="p7/paragraph2.png",
+            x=50,
+            y=60,
+            width=page_width - 300,
+            height=160
+        )
 
     # ============================================================
     # PAGE 3+ - CONTENT PAGES
@@ -487,19 +694,29 @@ for page_number in range(16):
     # Add page number and title text on pages 3 and beyond
     # page_number >= 2 means page 3 or later
     if page_number >= 2:
-        # Draw left-aligned text with page number
-        # Format: page_counter + 20pts space + "员工抗压力和岗位胜任力报告"
+        # Draw page number
         # Position: x=50, y=25 (bottom left area)
-        # Font size: 10, black, STSong-Light, left aligned
-        page_text = f"{page_counter}                    员工抗压力和岗位胜任力报告"
+        # Font size: 9 (decreased by 1pt), black, STSong-Light
         drawer.draw_string(
             x=50,
             y=25,
-            text=page_text,
+            text=str(page_counter),
             font="STSong-Light",
-            font_size=10,
+            font_size=9,
             color=Colors.BLACK
         )
+        
+        # Draw footer title text with reduced spacing (10pts less space)
+        # Previously 20 spaces, now reduced spacing between number and text
+        drawer.draw_string(
+            x=70,  # 20pts after page number start (reduced from 30pts)
+            y=25,
+            text="员工抗压力和岗位胜任力报告",
+            font="STSong-Light",
+            font_size=9,
+            color=Colors.BLACK
+        )
+        
         # Increment page counter for next page
         page_counter += 1
 
