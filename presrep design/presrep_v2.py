@@ -230,6 +230,61 @@ def draw_paragraph(canvas_obj, x, y, width, height, text):
     para.wrapOn(canvas_obj, width, height)
     para.drawOn(canvas_obj, x, y - height)  # Subtract height for top-to-bottom positioning
 
+# Define personality_graph module to draw 5-layered pentagon
+def draw_personality_graph(canvas_obj, center_x, center_y):
+    """
+    Draw a 5-layered pentagon (radar chart) for personality traits
+    Parameters:
+        canvas_obj: Canvas object for drawing
+        center_x: x position of center
+        center_y: y position of center
+    """
+    import math
+    
+    # Calculate pentagon vertices for each of 5 layers
+    # Each layer increases distance by 10 points: 30, 40, 50, 60, 70
+    distances = [30, 40, 50, 60, 70]
+    
+    # Pentagon has 5 vertices at angles: 90°, 162°, 234°, 306°, 18° (starting from top, clockwise)
+    # Or: 90°, 18°, 306°, 234°, 162° (top, top-right, bottom-right, bottom-left, top-left)
+    angles_degrees = [90, 18, 306, 234, 162]  # Starting from top, going clockwise
+    angles_radians = [math.radians(a) for a in angles_degrees]
+    
+    # Store all vertices for each layer
+    layers = []
+    for distance in distances:
+        layer_vertices = []
+        for angle in angles_radians:
+            x = center_x + distance * math.cos(angle)
+            y = center_y + distance * math.sin(angle)
+            layer_vertices.append((x, y))
+        layers.append(layer_vertices)
+    
+    # Draw pentagons from outer to inner (layers 4 to 0)
+    # Set blue color for lines
+    canvas_obj.setStrokeColorRGB(0, 0, 1)  # Blue
+    canvas_obj.setLineWidth(1)
+    
+    # Draw each pentagon layer
+    for layer_idx in range(4, -1, -1):  # 4, 3, 2, 1, 0 (outermost to innermost)
+        vertices = layers[layer_idx]
+        
+        # Create path for pentagon
+        path = canvas_obj.beginPath()
+        
+        # Move to first vertex
+        path.moveTo(vertices[0][0], vertices[0][1])
+        
+        # Draw lines to other vertices
+        for i in range(1, 5):
+            path.lineTo(vertices[i][0], vertices[i][1])
+        
+        # Close the pentagon
+        path.close()
+        
+        # Draw the path
+        canvas_obj.drawPath(path, stroke=1, fill=0)
+
 # Initialize page number counter
 # This counter starts at 1 so page 3 displays "1"
 # Used for page numbering on pages 3+
@@ -678,6 +733,9 @@ for page_number in range(16):
         
         # Call subtitle function at (50, 550)
         draw_paragraph_title(drawer, canvas_obj, 50, 550, "我的人格特质类型", "My Big Personality")
+        
+        # Draw personality graph (5-layered pentagon) at center position (300, 420)
+        draw_personality_graph(canvas_obj, 300, 420)
         
         # Upload paragraph2 image at (50, 60) with height 160, width = page_width - 300
         drawer.upload_image(
