@@ -1,33 +1,20 @@
-# Import system modules
-import sys
+# Import modules
 import os
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import Paragraph
+from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib import colors
+from roy_pdf_library import PDFGenerator, PDFDrawer, Colors, create_pdf
 
 # Change to the script's directory to ensure relative paths work
 # This makes sure image files can be found regardless of where the script is run from
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
-
-# Add parent directory to path to import roy_pdf_library
-# This must happen BEFORE importing roy_pdf_library
-# sys.path.insert() tells Python where to look for modules
-# os.path.join() creates the path to the parent directory (..)
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
-
-# Import roy's custom PDF library
-# This import comes AFTER the path setup above
-from roy_pdf_library import PDFGenerator, PDFDrawer, Colors, create_pdf
-
-# Import reportlab modules
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_JUSTIFY
-from reportlab.platypus import Paragraph
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.pdfbase import pdfmetrics
-from reportlab.lib.units import mm
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.pdfgen import canvas
 
 # Create PDF with A4 page size
 # A4 = standard paper size (210mm x 297mm)
@@ -43,6 +30,8 @@ page_width = 210 * mm   # A4 width = 210 millimeters
 page_height = 297 * mm  # A4 height = 297 millimeters
 
 # Define function to upload full-page image
+
+
 def upload_page_image(drawer, image_name, page_num, target_page):
     """
     Upload a full-page image if current page matches target page
@@ -60,6 +49,7 @@ def upload_page_image(drawer, image_name, page_num, target_page):
             width=page_width,
             height=page_height
         )
+
 
 # Initialize page number counter
 page_counter = 1
@@ -106,4 +96,3 @@ for page_number in range(16):
 # This writes all the pages to the file on your computer
 pdf.save()
 print("PDF created successfully with 16 pages, A4 size, and ruler overlay!")
-
