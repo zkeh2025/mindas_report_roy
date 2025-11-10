@@ -9,6 +9,7 @@ from reportlab.platypus import Paragraph
 from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
+from reportlab.lib.units import cm
 
 # 注册中文字体
 pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
@@ -307,6 +308,75 @@ class PDFDrawer:
         table.setStyle(tablestyle)
         table.wrapOn(self.c, 0, 0)
         table.drawOn(self.c, x, y)
+
+    def draw_person_info_table(self, x, y, info=None,
+                               col_widths=None, row_heights=None,
+                               dotted_line_image=None,
+                               dotted_line_offset=8,
+                               dotted_line_extra_width=24,
+                               dotted_line_height=4):
+        """绘制个人信息表格（6列7行）"""
+        if info is None:
+            info = {}
+
+        table_data = [
+            ["姓", "", "", "名", "：", info.get("name", "")],
+            ["性", "", "", "别", "：", info.get("sex", "")],
+            ["出", "生", "日", "期", "：", info.get("birth_date", "")],
+            ["测", "试", "日", "期", "：", info.get("test_date", "")],
+            ["年", "", "", "龄", "：", info.get("age", "")],
+            ["毕", "业", "学", "校", "：", info.get("school", "")],
+            ["联", "系", "电", "话", "：", info.get("phone", "")],
+        ]
+
+        if col_widths is None:
+            col_widths = [
+                0.5 * cm,
+                0.5 * cm,
+                0.5 * cm,
+                0.5 * cm,
+                0.5 * cm,
+                10 * cm,
+            ]
+
+        if row_heights is None:
+            row_heights = [1 * cm] * len(table_data)
+
+        table = Table(
+            table_data,
+            colWidths=col_widths,
+            rowHeights=row_heights,
+        )
+
+        tablestyle = TableStyle([
+            ('ALIGN', (0, 0), (4, len(table_data) - 1), 'CENTER'),
+            ('ALIGN', (5, 0), (5, len(table_data) - 1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'STSong-Light'),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+        ])
+
+        table.setStyle(tablestyle)
+        table.wrapOn(self.c, 0, 0)
+        table.drawOn(self.c, x, y)
+
+        if dotted_line_image:
+            total_width = sum(col_widths)
+            line_width = total_width + dotted_line_extra_width
+            table_center_x = x + total_width / 2
+            line_x = table_center_x - line_width / 2
+
+            current_y = y
+            for row_height in row_heights:
+                row_center = current_y + row_height / 2
+                line_y = row_center - dotted_line_offset
+                self.upload_image(
+                    dotted_line_image,
+                    x=line_x,
+                    y=line_y,
+                    width=line_width,
+                    height=dotted_line_height,
+                )
+                current_y += row_height
 
     def draw_ruler(self, page_width, page_height):
         """在页面边缘绘制标尺"""
