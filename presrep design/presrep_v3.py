@@ -1,15 +1,26 @@
 # Import modules
 import os
+
+try:
+    import requests
+except ImportError:  # pragma: no cover - optional dependency for API environments
+    requests = None
+
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.units import mm
+from reportlab.lib.units import mm, cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Paragraph
-from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 from reportlab.lib import colors
-from roy_pdf_library import PDFGenerator, PDFDrawer, Colors, create_pdf
+from pdf_generate_api.roy_pdf_library import (
+    PDFGenerator,
+    PDFDrawer,
+    Colors,
+    create_pdf,
+)
 
 # Change to the script's directory to ensure relative paths work
 # This makes sure image files can be found regardless of where the script is run from
@@ -33,58 +44,229 @@ page_height = 297 * mm  # A4 height = 297 millimeters
 from reportlab.pdfbase.ttfonts import TTFont
 
 # Register all fonts from 字体 folder
-pdfmetrics.registerFont(TTFont('FZLanTingXiHei', '字体/FZLTXHK 2.TTF'))  # 方正兰亭细黑
-pdfmetrics.registerFont(TTFont('FZLanTingTeHei', '字体/FZLTTHK.TTF'))  # 方正兰亭特黑 (Bold)
-pdfmetrics.registerFont(TTFont('FZLanTingCuHei', '字体/FZLTZCHJW.TTF'))  # 方正兰亭粗黑加粗
-pdfmetrics.registerFont(TTFont('FZLanTingChaoHei', '字体/FZLTCHK.ttf'))  # 方正兰亭超黑
-pdfmetrics.registerFont(TTFont('FZLanTingHei4', '字体/FZLTH4K.TTF'))  # 方正兰亭黑4
-# pdfmetrics.registerFont(TTFont('FZLanTingZhunHei', '字体/FZLTZHUNHK_0.otf'))  # 方正兰亭准黑 - OTF with PostScript outlines not supported
-pdfmetrics.registerFont(TTFont('FZTianYiSongK', '字体/FZTYSK.TTF'))  # 方正天一宋
-pdfmetrics.registerFont(TTFont('Impact', '字体/impact.ttf'))  # Impact
+font_base_path = "pdf_generate_api/字体/"
+pdfmetrics.registerFont(TTFont('FZLanTingXiHei', font_base_path + 'FZLTXHK 2.TTF'))  # 方正兰亭细黑
+pdfmetrics.registerFont(TTFont('FZLanTingTeHei', font_base_path + 'FZLTTHK.TTF'))  # 方正兰亭特黑 (Bold)
+pdfmetrics.registerFont(TTFont('FZLanTingCuHei', font_base_path + 'FZLTZCHJW.TTF'))  # 方正兰亭粗黑加粗
+pdfmetrics.registerFont(TTFont('FZLanTingChaoHei', font_base_path + 'FZLTCHK.ttf'))  # 方正兰亭超黑
+pdfmetrics.registerFont(TTFont('FZLanTingHei4', font_base_path + 'FZLTH4K.TTF'))  # 方正兰亭黑4
+# pdfmetrics.registerFont(TTFont('FZLanTingZhunHei', font_base_path + 'FZLTZHUNHK_0.otf'))  # 方正兰亭准黑 - OTF with PostScript outlines not supported
+pdfmetrics.registerFont(TTFont('FZTianYiSongK', font_base_path + 'FZTYSK.TTF'))  # 方正天一宋
+pdfmetrics.registerFont(TTFont('Impact', font_base_path + 'impact.ttf'))  # Impact
 
 # Define color constants
 deepblue = [49/255, 92/255, 170/255]  # RGB color for pentagon text
 
-# Define variables for text
-teacher = "张老师"  # Teacher name variable
-location = "北京"   # Location variable
-location_province = "北京市"  # Province variable
-district = "海淀区"  # District variable
+# Define page 3 and page 9 score display dimensions
+score_background_width = 80
+score_background_height = 65
 
-# Define pentagon score variables (1-5 representing layers from innermost to outermost)
-E_score = 3  # Extraversion score
-A_score = 4  # Agreeableness score
-C_score = 2  # Conscientiousness score
-N_score = 5  # Neuroticism score
-O_score = 4  # Openness score
+# Default report data and remote loading helpers
+DEFAULT_REPORT_DATA = {
+    "teacher": "张老师",
+    "location": "北京",
+    "location_province": "北京市",
+    "district": "海淀区",
+    "student_name": "张三",
+    "student_sex": "男",
+    "student_birth_date": "2000年1月1日",
+    "student_test_date": "2023年12月1日",
+    "student_age": "16岁",
+    "student_school": "中国高中",
+    "student_phone": "12345678901",
+    "text_1": "",
+    "text_2": "",
+    "text_3": "",
+    "text_4": "",
+    "text_5": "",
+    "text_6": "",
+    "attrativeness_score": 120.75,
+    "leadership_score": 150.60,
+    "leadership_skill_score": 210.45,
+    "technical_score": 112.35,
+    "communication_score": 108.64,
+    "communication_percentile": 192.57,
+    "E_score": 3,
+    "A_score": 4,
+    "C_score": 2,
+    "N_score": 5,
+    "O_score": 4,
+    "resilience_score": 85,
+    "stress_coping_score": 72,
+    "problem_solve_score": 45,
+    "doubt_score": 30,
+    "help_score": 35,
+    "fantasy_score": 25,
+    "escape_score": 20,
+    "rationalization_score": 40,
+    "interpersonal_score": 105.32,
+    "customer_service_score": 98.45,
+    "achievement_score": 110.27,
+    "thinking_score": 95.83,
+    "market_sensitivity_score": 102.66,
+    "teamwork_score": 109.12,
+    "knowledge_skill_score": 107.48,
+    "influence_score": 101.05,
+    "points": 7,
+}
 
-# Define resilience score variable
-resilience_score = 85  # Resilience score (0-100)
 
-# Define stress coping score variable
-stress_coping_score = 72  # Stress coping score (0-100)
+def get_report_data():
+    """
+    Load report data from a remote API, falling back to defaults when unavailable.
 
-# Define page 9 coping strategy scores
-problem_solve_score = 45  # Problem solving score
-doubt_score = 30  # Doubt score
-help_score = 35  # Help seeking score
-fantasy_score = 25  # Fantasy score
-escape_score = 20  # Escape score
-rationalization_score = 40  # Rationalization score
+    The API endpoint can be configured via the REPORT_DATA_API_URL environment variable.
+    Optionally set REPORT_DATA_API_TOKEN to add a Bearer token Authorization header.
+    """
+    api_url = os.environ.get("REPORT_DATA_API_URL")
+    if not api_url:
+        return DEFAULT_REPORT_DATA.copy()
 
-# Define page 15 competency scores (8 variables)
-interpersonal_score = 75  # 人际关系
-customer_service_score = 80  # 客户服务
-achievement_score = 70  # 成就导向
-thinking_score = 85  # 思维能力
-market_sensitivity_score = 65  # 市场敏感力
-teamwork_score = 90  # 团队协作
-knowledge_skill_score = 78  # 知识与技能
-influence_score = 72  # 影响力
+    if requests is None:
+        print("Warning: 'requests' package not available; using default report data.")
+        return DEFAULT_REPORT_DATA.copy()
 
-# Define page 13 circle variables
-points = 7  # Points value
+    headers = {}
+    token = os.environ.get("REPORT_DATA_API_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        response = requests.get(api_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Report data endpoint must return a JSON object.")
+        merged = DEFAULT_REPORT_DATA.copy()
+        merged.update(payload)
+        return merged
+    except Exception as exc:  # pragma: no cover - defensive logging
+        print(f"Warning: using default report data due to API error: {exc}")
+        return DEFAULT_REPORT_DATA.copy()
+
+
+def get_numeric_field(data, key):
+    default_value = DEFAULT_REPORT_DATA[key]
+    value = data.get(key, default_value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        print(f"Warning: coalescing non-numeric value for '{key}' -> {default_value}")
+        return float(default_value)
+
+
+def get_text_field(data, key):
+    value = data.get(key, DEFAULT_REPORT_DATA[key])
+    if value is None:
+        return ""
+    return str(value)
+
+
+def format_percentage(value, decimals=2):
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        numeric_value = 0.0
+    return f"{numeric_value:.{decimals}f}%"
+
+
+def build_p9_paragraphs():
+    """
+    Construct default descriptive paragraphs for the six coping strategy bars on page 9.
+    Each paragraph highlights the strategy name and corresponding score in bold blue text.
+    """
+    strategy_descriptions = [
+        ("解决问题", problem_solve_score,
+         "表明在主动理性应对困境方面，表现优于约 {score} 的同龄人。"),
+        ("怀疑", doubt_score,
+         "说明在面对压力时，保持审慎与反思的倾向，与约 {score} 的同龄人水平相当。"),
+        ("求助", help_score,
+         "显示在需要支援时，能够及时寻求帮助，超过约 {score} 的同龄人。"),
+        ("幻想", fantasy_score,
+         "提示在压力情境下，可能借助想象来缓冲情绪，与约 {score} 的同龄人类似。"),
+        ("逃避", escape_score,
+         "意味着在高压之下倾向于短暂抽离，维持与约 {score} 的同龄人相似的节奏。"),
+        ("合理化", rationalization_score,
+         "反映擅长通过解释事件来平衡情绪，优于约 {score} 的同龄人。"),
+    ]
+
+    paragraphs = []
+    highlight_color = "#315CAA"
+
+    for title, score_value, tail_template in strategy_descriptions:
+        score_text = format_percentage(score_value)
+        highlighted_title = f'<font color="{highlight_color}"><b>{title}：</b></font>'
+        highlighted_score = f'<font color="{highlight_color}"><b>{score_text}</b></font>'
+        tail_text = tail_template.format(score=highlighted_score)
+        paragraph = f"{highlighted_title}得分百分等级约 {highlighted_score}。{tail_text}"
+        paragraphs.append(paragraph)
+
+    return paragraphs
+
+
+report_data = get_report_data()
+
+# Assign text-based fields
+teacher = get_text_field(report_data, "teacher")
+location = get_text_field(report_data, "location")
+location_province = get_text_field(report_data, "location_province")
+district = get_text_field(report_data, "district")
+student_name = get_text_field(report_data, "student_name")
+student_sex = get_text_field(report_data, "student_sex")
+student_birth_date = get_text_field(report_data, "student_birth_date")
+student_test_date = get_text_field(report_data, "student_test_date")
+student_age = get_text_field(report_data, "student_age")
+student_school = get_text_field(report_data, "student_school")
+student_phone = get_text_field(report_data, "student_phone")
+text_1 = get_text_field(report_data, "text_1")
+text_2 = get_text_field(report_data, "text_2")
+text_3 = get_text_field(report_data, "text_3")
+text_4 = get_text_field(report_data, "text_4")
+text_5 = get_text_field(report_data, "text_5")
+text_6 = get_text_field(report_data, "text_6")
+
+# Assign numeric fields
+attrativeness_score = get_numeric_field(report_data, "attrativeness_score")
+leadership_score = get_numeric_field(report_data, "leadership_score")
+leadership_skill_score = get_numeric_field(report_data, "leadership_skill_score")
+technical_score = get_numeric_field(report_data, "technical_score")
+communication_score = get_numeric_field(report_data, "communication_score")
+communication_percentile = get_numeric_field(report_data, "communication_percentile")
+E_score = int(get_numeric_field(report_data, "E_score"))
+A_score = int(get_numeric_field(report_data, "A_score"))
+C_score = int(get_numeric_field(report_data, "C_score"))
+N_score = int(get_numeric_field(report_data, "N_score"))
+O_score = int(get_numeric_field(report_data, "O_score"))
+resilience_score = get_numeric_field(report_data, "resilience_score")
+stress_coping_score = get_numeric_field(report_data, "stress_coping_score")
+problem_solve_score = get_numeric_field(report_data, "problem_solve_score")
+doubt_score = get_numeric_field(report_data, "doubt_score")
+help_score = get_numeric_field(report_data, "help_score")
+fantasy_score = get_numeric_field(report_data, "fantasy_score")
+escape_score = get_numeric_field(report_data, "escape_score")
+rationalization_score = get_numeric_field(report_data, "rationalization_score")
+interpersonal_score = get_numeric_field(report_data, "interpersonal_score")
+customer_service_score = get_numeric_field(report_data, "customer_service_score")
+achievement_score = get_numeric_field(report_data, "achievement_score")
+thinking_score = get_numeric_field(report_data, "thinking_score")
+market_sensitivity_score = get_numeric_field(report_data, "market_sensitivity_score")
+teamwork_score = get_numeric_field(report_data, "teamwork_score")
+knowledge_skill_score = get_numeric_field(report_data, "knowledge_skill_score")
+influence_score = get_numeric_field(report_data, "influence_score")
+points = int(get_numeric_field(report_data, "points"))
+
+# Derived numeric fields
+competency_score = attrativeness_score + leadership_score + leadership_skill_score
 circle_degree = points * 36  # Circle degree calculation
+
+# Populate default paragraphs for page 9, while respecting API overrides if provided
+default_p9_paragraphs = build_p9_paragraphs()
+page9_overrides = [text_1, text_2, text_3, text_4, text_5, text_6]
+merged_p9_paragraphs = [
+    override if override.strip() else default
+    for override, default in zip(page9_overrides, default_p9_paragraphs)
+]
+text_1, text_2, text_3, text_4, text_5, text_6 = merged_p9_paragraphs
 
 # Define rectangle colors for page 9 bar chart
 rect_color_1 = [0.2, 0.6, 0.8]  # Light blue for problem solving
@@ -252,295 +434,58 @@ def draw_orange_lines(canvas_obj):
         score_label = counter * 20
         canvas_obj.setFont('FZLanTingXiHei', 12)
         canvas_obj.setFillColorRGB(0, 0, 0)
-        canvas_obj.drawRightString(90, y_pos, str(score_label))
+        canvas_obj.drawRightString(90, y_pos, format_percentage(score_label, decimals=0))
         
         counter += 1
 
-# Define functions to draw bar charts for each coping strategy
-def problem_solve_draw(canvas_obj, drawer, score, color, base_x, base_y):
+# Generic helper to draw vertical bars with score labels
+def draw_score_bar(canvas_obj, drawer, score, color, pos_x, pos_y, *, width=25,
+                   height_multiplier=4, width_adjust=0, text_formatter=None):
     """
-    Draw bar chart for problem solving score
-    """
-    # Draw rectangle
-    rect_height = score * 4
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
+    Draw a vertical bar with the score shown above it.
     
-    # Draw score text above rectangle
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score))
-
-def doubt_draw(canvas_obj, drawer, score, color, base_x, base_y):
+    Parameters:
+        canvas_obj: ReportLab canvas used for drawing text
+        drawer: PDFDrawer helper for rectangle operations
+        score: Numeric score to display
+        color: Fill color for the bar
+        pos_x: Left x-coordinate of the bar
+        pos_y: Bottom y-coordinate of the bar
+        width: Base width of the bar
+        height_multiplier: Multiplier applied to score for bar height
+        width_adjust: Extra width added on top of base width
+        text_formatter: Optional callable to format score text
+    Returns:
+        The final width of the rendered bar (base width + adjustment)
     """
-    Draw bar chart for doubt score
-    """
-    rect_height = score * 4
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score))
+    rect_width = width + width_adjust
+    rect_height = score * height_multiplier
 
-def help_draw(canvas_obj, drawer, score, color, base_x, base_y):
-    """
-    Draw bar chart for help seeking score
-    """
-    rect_height = score * 4
-    rect_width = 25
     drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
+        pos_x=pos_x,
+        pos_y=pos_y,
         width=rect_width,
         height=rect_height,
         color=color,
         fill=1,
-        stroke=0
+        stroke=0,
     )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score))
 
-def fantasy_draw(canvas_obj, drawer, score, color, base_x, base_y):
-    """
-    Draw bar chart for fantasy score
-    """
-    rect_height = score * 4
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
     canvas_obj.setFont('FZLanTingXiHei', 12)
     canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score))
+    text_x = pos_x + (rect_width / 2)
+    text_y = pos_y + rect_height + 10
 
-def escape_draw(canvas_obj, drawer, score, color, base_x, base_y):
-    """
-    Draw bar chart for escape score
-    """
-    rect_height = score * 4
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score))
+    if text_formatter is None:
+        text_value = str(score)
+    else:
+        text_value = text_formatter(score)
 
-def rationalization_draw(canvas_obj, drawer, score, color, base_x, base_y):
-    """
-    Draw bar chart for rationalization score
-    """
-    rect_height = score * 4
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score))
-
-# Define additional draw functions for page 15 (with % sign)
-def competency_draw_1(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2  # Different scale for percentage (0-100)
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
-
-def competency_draw_2(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
-
-def competency_draw_3(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
-
-def competency_draw_4(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
-
-def competency_draw_5(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
-
-def competency_draw_6(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
-
-def competency_draw_7(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
-
-def competency_draw_8(canvas_obj, drawer, score, color, base_x, base_y):
-    """Draw bar chart with % for competency score"""
-    rect_height = score * 2
-    rect_width = 25
-    drawer.draw_rect(
-        pos_x=base_x + 20,
-        pos_y=base_y,
-        width=rect_width,
-        height=rect_height,
-        color=color,
-        fill=1,
-        stroke=0
-    )
-    canvas_obj.setFont('FZLanTingXiHei', 12)
-    canvas_obj.setFillColorRGB(0, 0, 0)
-    text_x = base_x + 20 + (rect_width / 2)
-    text_y = base_y + rect_height + 10
-    canvas_obj.drawCentredString(text_x, text_y, str(score) + "%")
+    canvas_obj.drawCentredString(text_x, text_y, text_value)
+    return rect_width
 
 # Define function to draw two white rectangles for page 9
-def draw_two_white_rect(drawer, y):
+def draw_two_white_rect(drawer, y, y_offset=0, right_width_adjust=5, right_x_offset=3):
     """
     Draw two white rectangles at fixed x positions
     Parameters:
@@ -549,12 +494,16 @@ def draw_two_white_rect(drawer, y):
     """
     rect_width = 200
     rect_height = 50
-    
-    # Draw first white rectangle at x=80
-    draw_white_rectangle(drawer, x=80, y=y, width=rect_width, height=rect_height)
-    
-    # Draw second white rectangle at x=330
-    draw_white_rectangle(drawer, x=330, y=y, width=rect_width, height=rect_height)
+
+    adjusted_y = y + y_offset
+
+    left_rect = (80, adjusted_y, rect_width, rect_height)
+    right_rect = (330 + right_x_offset, adjusted_y, rect_width + right_width_adjust, rect_height)
+
+    draw_white_rectangle(drawer, *left_rect)
+    draw_white_rectangle(drawer, *right_rect)
+
+    return [left_rect, right_rect]
 
 # Define function to draw page 9 graph with orange lines and bar charts
 def draw_p9_graph(canvas_obj, drawer, problem_solve_score, doubt_score, help_score, 
@@ -570,30 +519,49 @@ def draw_p9_graph(canvas_obj, drawer, problem_solve_score, doubt_score, help_sco
     # Draw orange lines with labels
     draw_orange_lines(canvas_obj)
     
-    # Draw bar charts for all 6 coping strategies
-    # Base positions for each bar (evenly spaced across chart)
-    base_y = 300  # Starting y position (same as first orange line)
-    spacing = 40  # Space between bars
-    
-    problem_solve_draw(canvas_obj, drawer, problem_solve_score, rect_color_1, 100 + (spacing * 0), base_y)
-    doubt_draw(canvas_obj, drawer, doubt_score, rect_color_2, 100 + (spacing * 1), base_y)
-    help_draw(canvas_obj, drawer, help_score, rect_color_3, 100 + (spacing * 2), base_y)
-    fantasy_draw(canvas_obj, drawer, fantasy_score, rect_color_4, 100 + (spacing * 3), base_y)
-    escape_draw(canvas_obj, drawer, escape_score, rect_color_5, 100 + (spacing * 4), base_y)
-    rationalization_draw(canvas_obj, drawer, rationalization_score, rect_color_6, 100 + (spacing * 5), base_y)
+    base_y = 300
+    gap_between_rects = 30
+
+    bar_configs = [
+        (problem_solve_score, rect_color_1, 0, 0),
+        (doubt_score, rect_color_2, 0, 0),
+        (help_score, rect_color_3, 0, 0),
+        (fantasy_score, rect_color_4, 5, 3),
+        (escape_score, rect_color_5, 5, 3),
+        (rationalization_score, rect_color_6, 5, 3),
+    ]
+
+    current_left = 120  # Starting x-coordinate aligned with previous layout
+    percentage_formatter = lambda value: format_percentage(value)
+
+    for score, color, width_adjust, x_offset in bar_configs:
+        bar_x = current_left + x_offset
+        rendered_width = draw_score_bar(
+            canvas_obj,
+            drawer,
+            score,
+            color,
+            bar_x,
+            base_y,
+            width_adjust=width_adjust,
+            text_formatter=percentage_formatter,
+        )
+        current_left = (bar_x - x_offset) + rendered_width + gap_between_rects
 
 # Helper function to draw page 15 horizontal lines
-def draw_p15_lines(canvas_obj, start_x, start_y, line_length, count=6):
+def draw_p15_lines(canvas_obj, start_x, start_y, line_length, count=6, labels=None):
     """Draw horizontal guidance lines for the page 15 competency graph."""
     canvas_obj.setStrokeColorRGB(p15_light_grey[0], p15_light_grey[1], p15_light_grey[2])
     canvas_obj.setLineWidth(0.3)
-    for counter in range(count + 1):
-        y_pos = start_y + (counter * 35)
+    if labels is None:
+        labels = [counter * 20 for counter in range(count + 1)]
+
+    for index, label in enumerate(labels):
+        y_pos = start_y + (index * 35)
         canvas_obj.line(start_x, y_pos, start_x + line_length, y_pos)
-        score_label = counter * 20
         canvas_obj.setFont('FZLanTingXiHei', 12)
         canvas_obj.setFillColorRGB(0, 0, 0)
-        canvas_obj.drawRightString(start_x - 10, y_pos, str(score_label))
+        canvas_obj.drawRightString(start_x - 10, y_pos, str(label))
 
 # Define function to draw page 15 competency graph
 def draw_p15_graph(canvas_obj, drawer, scores, colors, start_x, start_y):
@@ -612,135 +580,60 @@ def draw_p15_graph(canvas_obj, drawer, scores, colors, start_x, start_y):
 
     # Draw guidance lines behind the bars
     line_length = spacing * (len(scores) - 1) + 80
-    draw_p15_lines(canvas_obj, start_x - 10, base_y, line_length)
+    p15_line_labels = [value for value in range(0, 101, 20)]
+    draw_p15_lines(canvas_obj, start_x - 10, base_y, line_length,
+                   count=len(p15_line_labels) - 1, labels=p15_line_labels)
     
-    # Draw all 8 competency bars
-    competency_draw_1(canvas_obj, drawer, scores[0], colors[0], start_x + (spacing * 0), base_y)
-    competency_draw_2(canvas_obj, drawer, scores[1], colors[1], start_x + (spacing * 1), base_y)
-    competency_draw_3(canvas_obj, drawer, scores[2], colors[2], start_x + (spacing * 2), base_y)
-    competency_draw_4(canvas_obj, drawer, scores[3], colors[3], start_x + (spacing * 3), base_y)
-    competency_draw_5(canvas_obj, drawer, scores[4], colors[4], start_x + (spacing * 4), base_y)
-    competency_draw_6(canvas_obj, drawer, scores[5], colors[5], start_x + (spacing * 5), base_y)
-    competency_draw_7(canvas_obj, drawer, scores[6], colors[6], start_x + (spacing * 6), base_y)
-    competency_draw_8(canvas_obj, drawer, scores[7], colors[7], start_x + (spacing * 7), base_y)
+    percentage_formatter = lambda value: f"{value:.2f}%"
+    for index, (score, color) in enumerate(zip(scores, colors)):
+        bar_x = start_x + (spacing * index) + 20
+        draw_score_bar(
+            canvas_obj,
+            drawer,
+            score,
+            color,
+            bar_x,
+            base_y,
+            width=22,
+            height_multiplier=2,
+            text_formatter=percentage_formatter,
+        )
 
 # Define function to draw page 13 circular graph
 def p13graph(canvas_obj, center_x, center_y, circle_degree_value, outer_diameter, inner_diameter,
              fill_color=deepblue, alpha=0.5):
-    """Draw layered circular arcs with connecting arcs for page 13."""
-    import math
-
+    """Draw thick rounded arc for page 13."""
     radius_outer = outer_diameter / 2
     radius_inner = inner_diameter / 2
+    thickness = radius_outer - radius_inner
+    mid_radius = radius_inner + (thickness / 2)
 
-    # Draw main arcs
-    canvas_obj.setStrokeColorRGB(deepblue[0], deepblue[1], deepblue[2])
-    canvas_obj.setLineWidth(1)
-    canvas_obj.arc(center_x - radius_outer, center_y - radius_outer,
-                   center_x + radius_outer, center_y + radius_outer,
+    canvas_obj.saveState()
+    canvas_obj.setLineWidth(thickness)
+    canvas_obj.setLineCap(1)
+    canvas_obj.setStrokeColorRGB(fill_color[0], fill_color[1], fill_color[2], alpha=alpha)
+    canvas_obj.arc(center_x - mid_radius, center_y - mid_radius,
+                   center_x + mid_radius, center_y + mid_radius,
                    0, circle_degree_value)
-    canvas_obj.arc(center_x - radius_inner, center_y - radius_inner,
-                   center_x + radius_inner, center_y + radius_inner,
-                   0, circle_degree_value)
-
-    # Draw connecting arcs at start and end
-    radius_connect = 10  # diameter 20 / 2
-    start_outer_x = center_x + radius_outer
-    start_outer_y = center_y
-    start_inner_x = center_x + radius_inner
-    start_inner_y = center_y
-
-    end_angle_rad = math.radians(circle_degree_value)
-    end_outer_x = center_x + radius_outer * math.cos(end_angle_rad)
-    end_outer_y = center_y + radius_outer * math.sin(end_angle_rad)
-    end_inner_x = center_x + radius_inner * math.cos(end_angle_rad)
-    end_inner_y = center_y + radius_inner * math.sin(end_angle_rad)
-
-    canvas_obj.arc(start_inner_x - radius_connect, start_inner_y - radius_connect,
-                   start_inner_x + radius_connect, start_inner_y + radius_connect,
-                   180, 360)
-    canvas_obj.arc(end_inner_x - radius_connect, end_inner_y - radius_connect,
-                   end_inner_x + radius_connect, end_inner_y + radius_connect,
-                   circle_degree_value, circle_degree_value + 180)
-
-    # Fill the enclosed area
-    canvas_obj.setFillColorRGB(fill_color[0], fill_color[1], fill_color[2], alpha=alpha)
-    path = canvas_obj.beginPath()
-
-    for angle_deg in range(0, int(circle_degree_value) + 1, 5):
-        angle_rad = math.radians(angle_deg)
-        x = center_x + radius_outer * math.cos(angle_rad)
-        y = center_y + radius_outer * math.sin(angle_rad)
-        if angle_deg == 0:
-            path.moveTo(x, y)
-        else:
-            path.lineTo(x, y)
-
-    for angle_deg in range(int(circle_degree_value), -1, -5):
-        angle_rad = math.radians(angle_deg)
-        x = center_x + radius_inner * math.cos(angle_rad)
-        y = center_y + radius_inner * math.sin(angle_rad)
-        path.lineTo(x, y)
-
-    path.close()
-    canvas_obj.drawPath(path, stroke=0, fill=1)
+    canvas_obj.restoreState()
 
 
 def draw_p11_graph(canvas_obj, center_x, center_y, circle_degree_value,
-                   outer_diameter, inner_diameter, fill_color, alpha=0.5):
-    """Draw layered circular segments for page 11 without connecting arcs."""
-    import math
-
+                   outer_diameter, inner_diameter, stroke_color, alpha=0.5):
+    """Draw thick rounded arc for page 11."""
     radius_outer = outer_diameter / 2
     radius_inner = inner_diameter / 2
+    thickness = radius_outer - radius_inner
+    mid_radius = radius_inner + (thickness / 2)
 
-    # Draw main arcs
-    canvas_obj.setStrokeColorRGB(deepblue[0], deepblue[1], deepblue[2])
-    canvas_obj.setLineWidth(1)
-    canvas_obj.arc(center_x - radius_outer, center_y - radius_outer,
-                   center_x + radius_outer, center_y + radius_outer,
+    canvas_obj.saveState()
+    canvas_obj.setLineWidth(thickness)
+    canvas_obj.setLineCap(1)  # round caps to create semicircle ends
+    canvas_obj.setStrokeColorRGB(stroke_color[0], stroke_color[1], stroke_color[2], alpha=alpha)
+    canvas_obj.arc(center_x - mid_radius, center_y - mid_radius,
+                   center_x + mid_radius, center_y + mid_radius,
                    0, circle_degree_value)
-    canvas_obj.arc(center_x - radius_inner, center_y - radius_inner,
-                   center_x + radius_inner, center_y + radius_inner,
-                   0, circle_degree_value)
-
-    # Calculate key points
-    start_outer_x = center_x + radius_outer
-    start_outer_y = center_y
-    start_inner_x = center_x + radius_inner
-    start_inner_y = center_y
-
-    end_angle_rad = math.radians(circle_degree_value)
-    end_outer_x = center_x + radius_outer * math.cos(end_angle_rad)
-    end_outer_y = center_y + radius_outer * math.sin(end_angle_rad)
-    end_inner_x = center_x + radius_inner * math.cos(end_angle_rad)
-    end_inner_y = center_y + radius_inner * math.sin(end_angle_rad)
-
-    # Connect arcs with straight lines
-    canvas_obj.line(start_inner_x, start_inner_y, start_outer_x, start_outer_y)
-    canvas_obj.line(end_inner_x, end_inner_y, end_outer_x, end_outer_y)
-
-    # Fill area between arcs
-    canvas_obj.setFillColorRGB(fill_color[0], fill_color[1], fill_color[2], alpha=alpha)
-    path = canvas_obj.beginPath()
-
-    for angle_deg in range(0, int(circle_degree_value) + 1, 5):
-        angle_rad = math.radians(angle_deg)
-        x = center_x + radius_outer * math.cos(angle_rad)
-        y = center_y + radius_outer * math.sin(angle_rad)
-        if angle_deg == 0:
-            path.moveTo(x, y)
-        else:
-            path.lineTo(x, y)
-
-    for angle_deg in range(int(circle_degree_value), -1, -5):
-        angle_rad = math.radians(angle_deg)
-        x = center_x + radius_inner * math.cos(angle_rad)
-        y = center_y + radius_inner * math.sin(angle_rad)
-        path.lineTo(x, y)
-
-    path.close()
-    canvas_obj.drawPath(path, stroke=0, fill=1)
+    canvas_obj.restoreState()
 # Define function to find min and max scores
 def find_min_max_scores(E, A, C, N, O):
     """
@@ -841,6 +734,17 @@ def draw_white_rectangle(drawer, x, y, width, height):
         stroke=0
     )
 
+
+def draw_center_white_rect(drawer, center_x, center_y, width, height):
+    """
+    Draw a white rectangle centered at the specified position.
+    Returns the bottom-left coordinates along with width and height.
+    """
+    bottom_left_x = center_x - (width / 2)
+    bottom_left_y = center_y - (height / 2)
+    draw_white_rectangle(drawer, bottom_left_x, bottom_left_y, width, height)
+    return bottom_left_x, bottom_left_y, width, height
+
 # Define function to draw centered text with paragraph
 def draw_big_text(canvas_obj, x, y, text, width):
     """
@@ -876,6 +780,31 @@ def draw_big_text(canvas_obj, x, y, text, width):
     # Draw paragraph at specified position
     para.drawOn(canvas_obj, x, y - para_height)
 
+
+def draw_paragraph_in_rect(canvas_obj, text, x, y, width, height, style=None):
+    """
+    Draw a paragraph within a rectangle area.
+    """
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT
+
+    if style is None:
+        default_style = ParagraphStyle(
+            name="Page9Paragraph",
+            parent=getSampleStyleSheet()['Normal'],
+            fontName='FZLanTingXiHei',
+            fontSize=12,
+            leading=14,
+            alignment=TA_LEFT,
+            textColor=colors.black,
+        )
+    else:
+        default_style = style
+
+    paragraph = Paragraph(text, default_style)
+    paragraph.wrapOn(canvas_obj, width, height)
+    paragraph.drawOn(canvas_obj, x, y)
+
 # Define function to upload full-page image
 
 
@@ -890,7 +819,7 @@ def upload_page_image(drawer, image_name, page_num, target_page):
     """
     if page_num == target_page:
         drawer.upload_image(
-            image=f"original_png/{image_name}",
+            image=f"pdf_generate_api/original_png/{image_name}",
             x=0,
             y=0,
             width=page_width,
@@ -954,6 +883,37 @@ for page_number in range(16):
         
         # Get canvas object for drawing text
         canvas_obj = pdf.get_canvas()
+
+        # Draw personal information table
+        info_table_data = {
+            "name": student_name,
+            "sex": student_sex,
+            "birth_date": student_birth_date,
+            "test_date": student_test_date,
+            "age": student_age,
+            "school": student_school,
+            "phone": student_phone,
+        }
+
+        person_info_col_widths = [
+            0.5 * cm,
+            0.5 * cm,
+            0.5 * cm,
+            0.5 * cm,
+            0.5 * cm,
+            10 * cm,
+        ]
+
+        person_info_row_heights = [1 * cm] * 7
+
+        drawer.draw_person_info_table(
+            x=200,
+            y=230,
+            info=info_table_data,
+            col_widths=person_info_col_widths,
+            row_heights=person_info_row_heights,
+            dotted_line_image="p3/dottedline.png",
+        )
         
         # Format text with variables and spacing (reduced from 5pts to 3pts)
         # 测评单位 + 3pts space + （teacher） + : + 3pts space + 中科宜和(location)
@@ -990,7 +950,7 @@ for page_number in range(16):
         canvas_obj = pdf.get_canvas()
         
         # Print resilience score (adjusted for new rectangle position)
-        print_score(canvas_obj, resilience_score, 450 + 20, 650 + 65 + 10)
+        print_score(canvas_obj, resilience_score, 450 + 20 + 5, 650 + 65 + 10 - 60)
     
     # ============================================================
     # SECTION 4: PAGE 4 EDITS (page_number == 3)
@@ -1047,7 +1007,7 @@ for page_number in range(16):
         # Format: (text, score, alignment, x, y)
         text_data = [
             ('外倾性 E', E_score, 'center', vertices[0][0], vertices[0][1] + 20),  # Top (moved 5pts up)
-            ('宜人性 A', A_score, 'left', vertices[4][0] - 10 - 20, vertices[4][1]),    # Top-left (moved 20pts left)
+            ('宜人性 A', A_score, 'left', vertices[4][0] - 10 - 30, vertices[4][1]),    # Top-left (moved 30pts left)
             ('开放性 O', O_score, 'left', vertices[1][0] - 5 + 20, vertices[1][1]),    # Top-right (moved 20pts right)
             ('尽责性 C', C_score, 'left', vertices[3][0] - 25, vertices[3][1] - 15),  # Bottom-left
             ('神经质 N', N_score, 'left', vertices[2][0] + 15, vertices[2][1] - 10)   # Bottom-right
@@ -1080,7 +1040,15 @@ for page_number in range(16):
     if page_number == 8:
         # Draw white rectangle at specified position for stress coping score
         # Width increased by 100% (40->80), moved 40pts right, moved 5pts lower
-        draw_white_rectangle(drawer, x=450 + 40, y=670 - 5, width=80, height=60)
+        stress_score_x = 450 + 40 + 30 - 40
+        stress_score_y = 670 - 5
+        draw_center_white_rect(
+            drawer,
+            center_x=stress_score_x,
+            center_y=stress_score_y + (score_background_height / 2),
+            width=score_background_width,
+            height=score_background_height,
+        )
         
         # Draw white rectangle for bar chart area
         draw_white_rectangle(drawer, x=60, y=280, width=470, height=230)
@@ -1089,7 +1057,8 @@ for page_number in range(16):
         canvas_obj = pdf.get_canvas()
         
         # Print stress coping score (adjusted position for moved rectangle)
-        print_score(canvas_obj, stress_coping_score, 450 + 40 + 30, 670 - 5)
+        stress_score_text = format_percentage(stress_coping_score)
+        print_score(canvas_obj, stress_score_text, stress_score_x, stress_score_y)
         
         # Draw page 9 graph with orange lines and bar charts
         draw_p9_graph(canvas_obj, drawer, problem_solve_score, doubt_score, help_score,
@@ -1097,9 +1066,33 @@ for page_number in range(16):
                      rect_color_1, rect_color_2, rect_color_3, rect_color_4, rect_color_5, rect_color_6)
         
         # Draw two white rectangles at three different y positions
-        draw_two_white_rect(drawer, 200)
-        draw_two_white_rect(drawer, 135)
-        draw_two_white_rect(drawer, 65)
+        page9_rects = []
+        page9_rects.extend(draw_two_white_rect(drawer, 200))
+        page9_rects.extend(draw_two_white_rect(drawer, 135))
+        page9_rects.extend(draw_two_white_rect(drawer, 65, y_offset=5))
+
+        page9_texts = [text_1, text_2, text_3, text_4, text_5, text_6]
+        paragraph_style = ParagraphStyle(
+            name="Page9ParagraphStyle",
+            parent=getSampleStyleSheet()['Normal'],
+            fontName='FZLanTingXiHei',
+            fontSize=12,
+            leading=14,
+            alignment=TA_LEFT,
+            textColor=colors.black,
+        )
+
+        for rect_info, paragraph_text in zip(page9_rects, page9_texts):
+            x_pos, y_pos, rect_width, rect_height = rect_info
+            draw_paragraph_in_rect(
+                canvas_obj,
+                paragraph_text,
+                x_pos,
+                y_pos,
+                rect_width,
+                rect_height,
+                style=paragraph_style,
+            )
     
     # ============================================================
     # SECTION 10: PAGE 10 EDITS (page_number == 9)
@@ -1112,26 +1105,26 @@ for page_number in range(16):
     # SECTION 11: PAGE 11 EDITS (page_number == 10)
     # ============================================================
     if page_number == 10:
-        # Draw white rectangle at same location as p3 top right corner
-        draw_white_rectangle(drawer, x=450, y=650, width=80, height=65)
-
         # Get canvas object for drawing
         canvas_obj = pdf.get_canvas()
         center_x = page_width / 2
-        center_y = page_height / 2
+        center_y = (page_height / 2) - 30
 
-        # Draw layered circular arcs using new helper
-        draw_p11_graph(canvas_obj, center_x, center_y, circle_degree,
+        # Draw center white rectangle behind graph
+        draw_center_white_rect(drawer, center_x, center_y, 160, 160)
+
+        # Draw layered circular arcs using new helper with individual degrees
+        draw_p11_graph(canvas_obj, center_x, center_y, attrativeness_score,
                        outer_diameter=110, inner_diameter=90,
-                       fill_color=p11_yellow, alpha=0.5)
+                       stroke_color=p11_yellow, alpha=0.5)
 
-        draw_p11_graph(canvas_obj, center_x, center_y, circle_degree,
+        draw_p11_graph(canvas_obj, center_x, center_y, leadership_score,
                        outer_diameter=130, inner_diameter=110,
-                       fill_color=p11_light_blue, alpha=0.4)
+                       stroke_color=p11_light_blue, alpha=0.4)
 
-        draw_p11_graph(canvas_obj, center_x, center_y, circle_degree,
+        draw_p11_graph(canvas_obj, center_x, center_y, leadership_skill_score,
                        outer_diameter=160, inner_diameter=140,
-                       fill_color=p11_dark_blue, alpha=0.3)
+                       stroke_color=p11_dark_blue, alpha=0.3)
 
         # Draw vertical grey line connecting arc starts
         canvas_obj.setStrokeColorRGB(vertical_grey[0], vertical_grey[1], vertical_grey[2])
@@ -1139,6 +1132,18 @@ for page_number in range(16):
         max_radius = 160 / 2
         x_line = center_x + max_radius
         canvas_obj.line(x_line, center_y - max_radius, x_line, center_y + max_radius)
+
+        # Draw competency score with centered white rectangle background
+        competency_score_x = 520
+        competency_score_y = 680
+        draw_center_white_rect(
+            drawer,
+            center_x=competency_score_x,
+            center_y=competency_score_y + (score_background_height / 2),
+            width=score_background_width,
+            height=score_background_height,
+        )
+        print_score(canvas_obj, f"{competency_score:.2f}", competency_score_x, competency_score_y)
     
     # ============================================================
     # SECTION 12: PAGE 12 EDITS (page_number == 11)
@@ -1156,9 +1161,38 @@ for page_number in range(16):
         center_x = page_width / 2
         center_y = page_height / 2
 
+        # Increase graph size and draw centered white rectangle
+        outer_diameter = 220
+        inner_diameter = 180
+        draw_center_white_rect(drawer, center_x, center_y, outer_diameter, outer_diameter)
+
         # Draw layered arcs for page 13 using helper function
-        p13graph(canvas_obj, center_x, center_y, circle_degree, 110, 90,
+        p13graph(canvas_obj, center_x, center_y, circle_degree, outer_diameter, inner_diameter,
                  fill_color=deepblue, alpha=0.5)
+
+        # Draw filled grey circle inside smaller radius
+        inner_radius = inner_diameter / 2
+        canvas_obj.setFillColorRGB(0.7, 0.7, 0.7)
+        canvas_obj.circle(center_x, center_y, inner_radius, stroke=0, fill=1)
+
+        # Draw technical score at circle center
+        technical_score_text = f"{technical_score:.2f}"
+        text_width = canvas_obj.stringWidth(technical_score_text, 'Impact', 40)
+        print_score(canvas_obj, technical_score_text,
+                    center_x - (text_width / 2),
+                    center_y - 20)
+
+        # Draw technical score card at top right similar to page 11
+        technical_score_card_x = 520
+        technical_score_card_y = 620
+        draw_center_white_rect(
+            drawer,
+            center_x=technical_score_card_x,
+            center_y=technical_score_card_y + (score_background_height / 2),
+            width=score_background_width,
+            height=score_background_height,
+        )
+        print_score(canvas_obj, technical_score_text, technical_score_card_x, technical_score_card_y)
     
     # ============================================================
     # SECTION 14: PAGE 14 EDITS (page_number == 13)
@@ -1195,7 +1229,23 @@ for page_number in range(16):
         ]
         
         # Draw the competency graph at position (50, 170)
-        draw_p15_graph(canvas_obj, drawer, p15_scores, p15_colors, 50, 170)
+        draw_p15_graph(canvas_obj, drawer, p15_scores, p15_colors, 80, 170)
+
+        # Draw communication scores with background rectangles
+        communication_entries = [
+            (460, 670, communication_score),
+            (460, 600, communication_percentile),
+        ]
+
+        for entry_x, entry_y, entry_value in communication_entries:
+            draw_center_white_rect(
+                drawer,
+                center_x=entry_x,
+                center_y=entry_y + (score_background_height / 2),
+                width=score_background_width,
+                height=score_background_height,
+            )
+            print_score(canvas_obj, f"{entry_value:.2f}", entry_x, entry_y)
     
     # ============================================================
     # SECTION 16: PAGE 16 EDITS (page_number == 15)
