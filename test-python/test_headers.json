@@ -1,0 +1,21 @@
+{
+  "platform_admin": {
+    "description": "平台管理员，用于验证具备全局权限的测试场景。",
+    "headers": {
+      "X-Test-User-Id": "485c6921-974c-4fad-93fc-464c639db4ee",
+      "X-Test-User-Name": "test_platform_admin",
+      "X-Test-User-Roles": "platform_admin",
+      "X-Tenant-ID": "00000000-0000-0000-0000-000000000001"
+    }
+  },
+  "tenant_a_supervisor": {
+    "description": "租户A的测评主管，具备租户级作业管理权限的示例。",
+    "headers": {
+      "X-Test-User-Id": "b262b0b9-795f-470d-aaf1-066ec8c7c963",
+      "X-Test-User-Name": "test_tenant_a_supervisor",
+      "X-Test-User-Roles": "tenant_assessment_supervisor",
+      "X-Tenant-ID": "8d43ab82-faef-40f7-bd6f-5d0565164242"
+    }
+  }
+}
+
