@@ -1,0 +1,660 @@
+{
+  "components": {
+    "schemas": {
+      "CreateJobRequest": {
+        "description": "创建作业请求",
+        "properties": {
+          "callback_url": {
+            "description": "回调URL",
+            "nullable": true,
+            "type": "string"
+          },
+          "job_type": {
+            "$ref": "#/components/schemas/JobType"
+          },
+          "max_retries": {
+            "description": "最大重试次数",
+            "format": "int32",
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JobPriority"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "job_type"
+        ],
+        "type": "object"
+      },
+      "CreateJobResponse": {
+        "description": "创建作业响应",
+        "properties": {
+          "created_at": {
+            "description": "创建时间",
+            "format": "date-time",
+            "type": "string"
+          },
+          "job_id": {
+            "description": "作业ID",
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "JobInfo": {
+        "description": "作业信息（用于API响应）",
+        "properties": {
+          "completed_at": {
+            "description": "完成时间",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "description": "创建时间",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "作业ID",
+            "format": "uuid",
+            "type": "string"
+          },
+          "job_type": {
+            "$ref": "#/components/schemas/JobType"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/JobPriority"
+          },
+          "retry_count": {
+            "description": "当前重试次数",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "started_at": {
+            "description": "开始时间",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "worker_id": {
+            "description": "Worker ID",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "job_type",
+          "status",
+          "priority",
+          "created_at",
+          "retry_count"
+        ],
+        "type": "object"
+      },
+      "JobPriority": {
+        "description": "作业优先级",
+        "enum": [
+          "Low",
+          "Normal",
+          "High",
+          "Urgent"
+        ],
+        "type": "string"
+      },
+      "JobResult": {
+        "description": "作业结果",
+        "properties": {
+          "completed_at": {
+            "description": "完成时间",
+            "format": "date-time",
+            "type": "string"
+          },
+          "error": {
+            "description": "错误信息",
+            "nullable": true,
+            "type": "string"
+          },
+          "execution_time_ms": {
+            "description": "执行时间（毫秒）",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "job_id": {
+            "description": "作业ID",
+            "format": "uuid",
+            "type": "string"
+          },
+          "result": {
+            "description": "结果数据",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "completed_at"
+        ],
+        "type": "object"
+      },
+      "JobStatus": {
+        "description": "作业状态枚举",
+        "enum": [
+          "Pending",
+          "Running",
+          "Completed",
+          "Failed",
+          "Timeout",
+          "Cancelled"
+        ],
+        "type": "string"
+      },
+      "JobType": {
+        "description": "作业类型枚举",
+        "oneOf": [
+          {
+            "properties": {
+              "WebApiJob": {
+                "description": "Web API作业",
+                "properties": {
+                  "body": {
+                    "description": "请求体",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "请求头",
+                    "type": "object"
+                  },
+                  "method": {
+                    "description": "HTTP方法",
+                    "type": "string"
+                  },
+                  "timeout": {
+                    "description": "超时时间（秒）",
+                    "format": "int64",
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "url": {
+                    "description": "API URL",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url",
+                  "method",
+                  "headers"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "WebApiJob"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "RustJob": {
+                "description": "Rust作业（预留）",
+                "properties": {
+                  "function": {
+                    "description": "函数名",
+                    "type": "string"
+                  },
+                  "module": {
+                    "description": "模块名",
+                    "type": "string"
+                  },
+                  "params": {
+                    "description": "参数"
+                  }
+                },
+                "required": [
+                  "module",
+                  "function",
+                  "params"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "RustJob"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "RegisterWorkerRequest": {
+        "description": "注册Worker请求",
+        "properties": {
+          "id": {
+            "description": "Worker ID",
+            "type": "string"
+          },
+          "max_concurrent_jobs": {
+            "description": "最大并发作业数",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "supported_job_types": {
+            "description": "支持的作业类型",
+            "items": {
+              "$ref": "#/components/schemas/JobType"
+            },
+            "type": "array"
+          },
+          "worker_type": {
+            "$ref": "#/components/schemas/WorkerType"
+          }
+        },
+        "required": [
+          "id",
+          "worker_type",
+          "max_concurrent_jobs",
+          "supported_job_types"
+        ],
+        "type": "object"
+      },
+      "RegisterWorkerResponse": {
+        "description": "注册Worker响应",
+        "properties": {
+          "registered_at": {
+            "description": "注册时间",
+            "format": "date-time",
+            "type": "string"
+          },
+          "worker_id": {
+            "description": "Worker ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "worker_id",
+          "registered_at"
+        ],
+        "type": "object"
+      },
+      "UpdateWorkerLoadRequest": {
+        "description": "更新Worker负载请求",
+        "properties": {
+          "cpu_usage": {
+            "description": "CPU使用率",
+            "format": "double",
+            "type": "number"
+          },
+          "current_jobs": {
+            "description": "当前作业数",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memory_usage": {
+            "description": "内存使用率",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "current_jobs",
+          "cpu_usage",
+          "memory_usage"
+        ],
+        "type": "object"
+      },
+      "WorkerInfo": {
+        "description": "Worker信息（用于API响应）",
+        "properties": {
+          "cpu_usage": {
+            "description": "CPU使用率",
+            "format": "double",
+            "type": "number"
+          },
+          "current_jobs": {
+            "description": "当前作业数",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "id": {
+            "description": "Worker ID",
+            "type": "string"
+          },
+          "is_online": {
+            "description": "是否在线",
+            "type": "boolean"
+          },
+          "last_heartbeat": {
+            "description": "最后心跳时间",
+            "format": "date-time",
+            "type": "string"
+          },
+          "load_ratio": {
+            "description": "负载率（当前作业数/最大作业数）",
+            "format": "double",
+            "type": "number"
+          },
+          "max_concurrent_jobs": {
+            "description": "最大并发作业数",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memory_usage": {
+            "description": "内存使用率",
+            "format": "double",
+            "type": "number"
+          },
+          "worker_type": {
+            "$ref": "#/components/schemas/WorkerType"
+          }
+        },
+        "required": [
+          "id",
+          "worker_type",
+          "max_concurrent_jobs",
+          "current_jobs",
+          "cpu_usage",
+          "memory_usage",
+          "last_heartbeat",
+          "is_online",
+          "load_ratio"
+        ],
+        "type": "object"
+      },
+      "WorkerType": {
+        "description": "Worker类型",
+        "enum": [
+          "WebApi",
+          "Rust"
+        ],
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "contact": {
+      "email": "gongwenxue@zkeh.cn",
+      "name": "ZKEH Team"
+    },
+    "description": "基于Rust的分布式作业管理系统API",
+    "license": {
+      "name": ""
+    },
+    "title": "Job Manager API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/health": {
+      "get": {
+        "description": "检查作业管理系统的健康状态",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "系统健康"
+          }
+        },
+        "summary": "健康检查",
+        "tags": [
+          "job-manager"
+        ]
+      }
+    },
+    "/jobs": {
+      "post": {
+        "description": "创建一个新的作业并提交到作业队列中执行",
+        "operationId": "create_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateJobResponse"
+                }
+              }
+            },
+            "description": "作业创建成功"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        },
+        "summary": "创建作业",
+        "tags": [
+          "job-manager"
+        ]
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "description": "根据作业ID获取作业的详细信息",
+        "operationId": "get_job",
+        "parameters": [
+          {
+            "description": "作业ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobInfo"
+                }
+              }
+            },
+            "description": "作业信息"
+          },
+          "404": {
+            "description": "作业不存在"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        },
+        "summary": "获取作业信息",
+        "tags": [
+          "job-manager"
+        ]
+      }
+    },
+    "/jobs/{id}/result": {
+      "get": {
+        "description": "根据作业ID获取作业的执行结果",
+        "operationId": "get_job_result",
+        "parameters": [
+          {
+            "description": "作业ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResult"
+                }
+              }
+            },
+            "description": "作业结果"
+          },
+          "404": {
+            "description": "作业结果不存在"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        },
+        "summary": "获取作业结果",
+        "tags": [
+          "job-manager"
+        ]
+      }
+    },
+    "/workers": {
+      "get": {
+        "description": "获取所有已注册的Worker信息",
+        "operationId": "list_workers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerInfo"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Worker列表"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        },
+        "summary": "列出所有Worker",
+        "tags": [
+          "job-manager"
+        ]
+      },
+      "post": {
+        "description": "注册一个新的Worker到系统中",
+        "operationId": "register_worker",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterWorkerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterWorkerResponse"
+                }
+              }
+            },
+            "description": "Worker注册成功"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        },
+        "summary": "注册Worker",
+        "tags": [
+          "job-manager"
+        ]
+      }
+    },
+    "/workers/{id}": {
+      "post": {
+        "description": "更新指定Worker的负载信息",
+        "operationId": "update_worker_load",
+        "parameters": [
+          {
+            "description": "Worker ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkerLoadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "负载更新成功"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        },
+        "summary": "更新Worker负载",
+        "tags": [
+          "job-manager"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "作业管理API",
+      "name": "job-manager"
+    }
+  ]
+}
